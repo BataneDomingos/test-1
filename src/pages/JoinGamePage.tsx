@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, ArrowRight, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 export const JoinGamePage: React.FC = () => {
   const [pin, setPin] = useState('');
@@ -9,6 +10,34 @@ export const JoinGamePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [gameFound, setGameFound] = useState(false);
+  const [gameSessionId, setGameSessionId] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  // Redireciona quando professor inicia o jogo
+  useEffect(() => {
+    if (!gameFound || !gameSessionId) return;
+
+    const channel = supabase.channel(`game-session-${gameSessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'game_sessions',
+          filter: `id=eq.${gameSessionId}`,
+        },
+        (payload: { new: { status: string } }) => {
+          if (payload.new.status === 'started') {
+            navigate(`/game/${gameSessionId}`);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [gameFound, gameSessionId, navigate]);
 
   const handleJoinGame = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +47,7 @@ export const JoinGamePage: React.FC = () => {
     setError('');
 
     try {
-      // Check if game session exists
+      // Verifica se a sessão do jogo existe
       const { data: gameSession, error: gameError } = await supabase
         .from('game_sessions')
         .select('*')
@@ -32,7 +61,7 @@ export const JoinGamePage: React.FC = () => {
         return;
       }
 
-      // Check if player name is already taken
+      // Verifica se o nome já está sendo usado
       const { data: existingPlayer } = await supabase
         .from('player_sessions')
         .select('id')
@@ -46,7 +75,7 @@ export const JoinGamePage: React.FC = () => {
         return;
       }
 
-      // Join the game
+      // Adiciona o jogador
       const { error: joinError } = await supabase
         .from('player_sessions')
         .insert([
@@ -60,11 +89,11 @@ export const JoinGamePage: React.FC = () => {
 
       if (joinError) throw joinError;
 
+      setGameSessionId(gameSession.id);
       setGameFound(true);
-      // In a real implementation, you'd redirect to the game waiting room
-      
+
     } catch (error) {
-      console.error('Error joining game:', error);
+      console.error('Erro ao entrar no jogo:', error);
       setError('Erro ao entrar no jogo. Tente novamente.');
     } finally {
       setLoading(false);
