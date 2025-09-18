@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -18,15 +18,22 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
+      {/* Tela de aluno */}
       <Route path="/join" element={<JoinGamePage />} />
+
+      {/* Tela de autenticação */}
       <Route
         path="/auth"
         element={user ? <Navigate to="/dashboard" /> : <AuthPage />}
       />
+
+      {/* Dashboard do professor */}
       <Route
         path="/dashboard"
         element={user ? <DashboardPage /> : <Navigate to="/auth" />}
       />
+
+      {/* Rota raiz */}
       <Route
         path="/"
         element={<Navigate to={user ? "/dashboard" : "/join"} />}
