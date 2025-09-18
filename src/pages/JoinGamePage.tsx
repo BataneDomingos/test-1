@@ -17,25 +17,17 @@ export const JoinGamePage: React.FC = () => {
   useEffect(() => {
     if (!gameFound || !gameSessionId) return;
 
-    const channel = supabase.channel(`game-session-${gameSessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'game_sessions',
-          filter: `id=eq.${gameSessionId}`,
-        },
-        (payload: { new: { status: string } }) => {
-          if (payload.new.status === 'started') {
-            navigate(`/game/${gameSessionId}`);
-          }
+    const subscription = supabase
+      .from(`game_sessions:id=eq.${gameSessionId}`)
+      .on('UPDATE', (payload) => {
+        if (payload.new.status === 'started') {
+          navigate(`/game/${gameSessionId}`);
         }
-      )
+      })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeSubscription(subscription);
     };
   }, [gameFound, gameSessionId, navigate]);
 
