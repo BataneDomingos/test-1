@@ -1,43 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Play, Edit, Trash2, Users, BarChart3, Clock } from 'lucide-react';
-import { Quiz, GameSession, PlayerSession } from '../../types';
+import { Quiz } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 interface TeacherDashboardProps {
   onCreateQuiz: () => void;
   onEditQuiz: (quiz: Quiz) => void;
+  onStartGame: (quiz: Quiz) => void;
   onViewStats: (quiz: Quiz) => void;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onCreateQuiz,
   onEditQuiz,
+  onStartGame,
   onViewStats,
 }) => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) loadQuizzes();
+    if (user) {
+      loadQuizzes();
+    }
   }, [user]);
 
   const loadQuizzes = async () => {
     try {
       const { data, error } = await supabase
         .from('quizzes')
-        .select('*, questions (*)')
+        .select(`
+          *,
+          questions (*)
+        `)
         .eq('created_by', user?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setQuizzes(data || []);
-    } catch (err) {
-      console.error('Erro ao carregar quizzes:', err);
+    } catch (error) {
+      console.error('Error loading quizzes:', error);
     } finally {
       setLoading(false);
     }
@@ -54,36 +59,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
       if (error) throw error;
       loadQuizzes();
-    } catch (err) {
-      console.error('Erro ao deletar quiz:', err);
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
     }
   };
 
-  const startGame = async (quiz: Quiz) => {
-    try {
-      // Criar uma game session
-      const pin = Math.floor(100000 + Math.random() * 900000).toString();
-      const { data: session, error } = await supabase
-        .from('game_sessions')
-        .insert([
-          {
-            quiz_id: quiz.id,
-            pin,
-            status: 'waiting',
-            current_question: 0,
-            created_by: user?.id,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error || !session) throw error || new Error('Erro ao criar sessão');
-
-      // Redirecionar para a tela de lobby com o ID da sessão
-      navigate(`/lobby/${session.id}`);
-    } catch (err) {
-      console.error('Erro ao iniciar jogo:', err);
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
     }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
   };
 
   if (loading) {
@@ -95,7 +88,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   }
 
   return (
-    <motion.div className="space-y-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-8"
+    >
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Meus Quizzes</h1>
@@ -113,7 +111,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       </div>
 
       {quizzes.length === 0 ? (
-        <motion.div className="text-center py-12">
+        <motion.div
+          variants={itemVariants}
+          className="text-center py-12"
+        >
           <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-12 h-12 text-gray-400" />
           </div>
@@ -133,13 +134,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           {quizzes.map((quiz) => (
             <motion.div
               key={quiz.id}
+              variants={itemVariants}
               className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all"
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2 line-clamp-2">{quiz.title}</h3>
-                    <p className="text-gray-600 text-sm line-clamp-2 mb-4">{quiz.description}</p>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2 line-clamp-2">
+                      {quiz.title}
+                    </h3>
+                    <p className="text-gray-600 text-sm line-clamp-2 mb-4">
+                      {quiz.description}
+                    </p>
                   </div>
                 </div>
 
@@ -150,13 +156,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </div>
                   <div className="flex items-center space-x-1">
                     <Clock className="w-4 h-4" />
-                    <span>{new Date(quiz.created_at).toLocaleDateString('pt-BR')}</span>
+                    <span>
+                      {new Date(quiz.created_at).toLocaleDateString('pt-BR')}
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex space-x-2">
                   <motion.button
-                    onClick={() => startGame(quiz)}
+                    onClick={() => onStartGame(quiz)}
                     className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-2"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -167,18 +175,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   <motion.button
                     onClick={() => onEditQuiz(quiz)}
                     className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
                     <Edit className="w-4 h-4" />
                   </motion.button>
                   <motion.button
                     onClick={() => onViewStats(quiz)}
                     className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
                     <BarChart3 className="w-4 h-4" />
                   </motion.button>
                   <motion.button
                     onClick={() => deleteQuiz(quiz.id)}
                     className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
                     <Trash2 className="w-4 h-4" />
                   </motion.button>
